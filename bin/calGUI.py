@@ -1,6 +1,6 @@
 # /*
 #  * CIS2750 F2017
-#  * Assignment 3
+#  * Assignment 4
 #  * Jackson Zavarella 0929350
 #  * This file creates the GUI and handles most of the business logic
 #  * No code was used from previous classes/ sources
@@ -12,28 +12,35 @@ from tkinter import *
 import sys
 from tkinter import messagebox, filedialog
 from time import gmtime, strftime
+import mysql.connector
+import datetime
 
 from cal import driver
+from sql import sqlDriver
+from sql import executeQueryGui
 
 
 class App(tk.Tk):
 
-    def __init__(self, title):
+    def __init__(self, title, sql):
         tk.Tk.__init__(self)
         self.title(title) # Set the title of the application
+        self.sqlDriver = sql
         self.protocol('WM_DELETE_WINDOW', self.quitHandler)  # Ask the user if they really want to quit when they hit the x button
-        # self.geometry("740x1200") # Set the dimension of the window
-        width, height = self.winfo_screenwidth(), self.winfo_screenheight()
-        self.geometry('%dx%d+0+0' % (width,height))
+        self.geometry("740x1200") # Set the dimension of the window
+        # width, height = self.winfo_screenwidth(), self.winfo_screenheight()
+        # self.geometry('%dx%d+0+0' % (width,height))
         self.mainFrame = tk.Frame(self)
         self.initMenuBar() # Make the menubar
         self.initFileView() # Make the file view
         self.initLogPanel() # Make the console
+        # self.initDatabse() # Create the database connection
         self.mainFrame.pack(fill="both", expand=1)
 
         self.modalActive = False
         self.calPointer = None
         self.f = None
+        self.executeGUI = None
 
         self.calDriver = driver.CalendarDriver("bin/libcparse.so") # Initialize the CalendarDriver
 
@@ -103,12 +110,23 @@ class App(tk.Tk):
         self.showMenu.add_command(label="Show alarms", command=self.showAlarmsHandler, accelerator="Ctrl+a", state="disabled")
         self.showMenu.add_command(label="Show external props", command=self.showPropsHandler, accelerator="Ctrl+p", state="disabled")
 
+        self.databaseMenu = tk.Menu(menubar, tearoff=False)
+        self.databaseMenu.add_command(label="Store all events", command=self.storeAllEventsHandler, state="disabled")
+        self.databaseMenu.add_command(label="Store current event", command=self.storeCurrentEventHandler, state="disabled")
+        self.databaseMenu.add_command(label="Clear all data", command=self.clearAllDataHandler, state="disabled")
+        self.databaseMenu.add_command(label="Display DB status", command=self.displayDBStatusHandler)
+        self.databaseMenu.add_command(label="Execute query", command=self.executeQueryHandler)
+
+        if self.sqlDriver.tablesHaveRows():
+            self.databaseMenu.entryconfig("Clear all data", state="normal")
+
         helpMenu = tk.Menu(menubar, tearoff=False)
         helpMenu.add_command(label="About iCalGUI", command=self.aboutHandler, accelerator="Ctrl+i")
 
         menubar.add_cascade(label="File", underline=0, menu=fileMenu)
         menubar.add_cascade(label="Create", underline=0, menu=self.createMenu)
         menubar.add_cascade(label="Show", underline=0, menu=self.showMenu)
+        menubar.add_cascade(label="Database", underline=0, menu=self.databaseMenu)
         menubar.add_cascade(label="Help", underline=0, menu=helpMenu)
         self.config(menu=menubar)
 
@@ -122,11 +140,94 @@ class App(tk.Tk):
         self.bind_all("<Control-p>", lambda event: self.after(150, self.showPropsHandler))
         self.bind_all("<Control-i>", lambda event: self.after(150, self.aboutHandler))
 
+    def storeAllEventsHandler(self):
+        self.log("Store all events")
+        for child in self.components.get_children():
+            row = self.components.item(child)['values']
+            self.insertEvent(row[0])
+        self.displayDBStatusHandler()
+
+    def storeCurrentEventHandler(self):
+        selected = self.components.selection()
+        self.insertEvent(self.components.item(selected)['values'][0])
+        self.displayDBStatusHandler()
+
+    def insertEvent(self, index):
+        response = self.calDriver.getComponentPropertiesDatabase(self.calPointer, index)
+        if response is None:
+            self.log("Event number " + str(self.components.item(selected)['values'][0]) + " does not exist in " + self.fPretty + " or the file is no longer valid.\nThis could be caused by the iCalendar file being edited after it was opened here.")
+            return
+        responseList = response.split("\\\"")
+        if len(responseList) != 5:
+            self.log("Something went horribly wrong in the c code")
+            return
+
+        summary = responseList[0]
+        startTime = responseList[1]
+        location = responseList[2]
+        numAlarms = responseList[3]
+        organizer = responseList[4]
+        year = int(startTime[:4])
+        month = int(startTime[4:6])
+        day = int(startTime[6:8])
+        seconds = startTime[9:]
+        if seconds[-1] == 'Z':
+            seconds = seconds[:-1]
+        seconds = int(seconds)
+        timeS = datetime.datetime(year, month, day) + datetime.timedelta(seconds=seconds)
+
+        res = self.sqlDriver.insertEvent(summary, timeS, location, numAlarms, organizer)
+
+        self.log(res)
+
+        if self.sqlDriver.tablesHaveRows():
+            self.databaseMenu.entryconfig("Clear all data", state="normal")
+
+    def clearAllDataHandler(self):
+        self.sqlDriver.execute("DELETE from EVENT")
+        self.sqlDriver.execute("DELETE from ORGANIZER")
+        self.log("Deleted all rows")
+        self.databaseMenu.entryconfig("Clear all data", state="disabled") # Disable the menu
+
+    def displayDBStatusHandler(self):
+        numOrg = self.sqlDriver.execute("SELECT COUNT(*) FROM ORGANIZER")[0]
+        if numOrg == None:
+            numOrg = 0
+        else:
+            numOrg = numOrg[0]
+        numEve = self.sqlDriver.execute("SELECT COUNT(*) FROM EVENT")[0]
+        if numEve == None:
+            numEve = 0
+        else:
+            numEve = numEve[0]
+        self.log("Database has " + str(numOrg) + " organizers and " + str(numEve) + " events")
+
+    def executeQueryHandler(self):
+        if self.executeGUI != None:
+            self.log("There is already an execute query gui running.")
+            return
+        self.executeGUI = executeQueryGui.QueryGui(self.sqlDriver, self)
+        self.executeGUI.mainloop()
+
+
+    def enableDatabaseMenus(self):
+        self.databaseMenu.entryconfig("Store all events", state="normal")
+        self.databaseMenu.entryconfig("Store current event", state="normal")
+
+    def disableDatabaseMenus(self):
+        self.databaseMenu.entryconfig("Store all events", state="disabled")
+        self.databaseMenu.entryconfig("Store current event", state="disabled")
+
     def updateComponentView(self):
         self.components.delete(*self.components.get_children()) # Remove old components
         components = self.calDriver.getCalendarComponents(self.calPointer)
         for component in components:
             self.insertComponent(component)
+        if len(components) > 0:
+            self.databaseMenu.entryconfig("Store all events", state="normal")
+        else:
+            self.databaseMenu.entryconfig("Store all events", state="disabled")
+        self.databaseMenu.entryconfig("Store current event", state="disabled")
 
     def clearLog(self):
         self.console.config(state=NORMAL) # Allow editting
@@ -154,8 +255,10 @@ class App(tk.Tk):
         if clicked not in row: # If the node our mouse is on is not selected
             treeview.selection_add(clicked) # Select it
             self.enableShowMenu()
+            self.databaseMenu.entryconfig("Store current event", state="normal")
         else:
             self.disableShowMenu()
+            self.databaseMenu.entryconfig("Store current event", state="disabled")
         treeview.selection_remove(row) # Deselect all other nodes
 
     def openHandler(self):
@@ -233,6 +336,8 @@ class App(tk.Tk):
         self.log("quitting...")
         if self.calPointer != None:
             self.calDriver.deleteCalendar(self.calPointer)
+        if self.sqlDriver != None:
+            self.sqlDriver.destroy()
         sys.exit(0)
 
     def createCalendarHandler(self):

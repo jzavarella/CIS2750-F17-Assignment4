@@ -37,6 +37,9 @@ class CalendarDriver(object):
         self.calLib.matchDATEField.restype = c_int
         self.calLib.matchDATEField.argtypes = [c_char_p]
 
+        self.calLib.getComponentPropertiesDatabasePython.argtypes = [c_void_p, c_int]
+        self.calLib.getComponentPropertiesDatabasePython.restype = c_char_p
+
         self.calLib.createBasicCalendarPython.restype = c_void_p
         self.calLib.createBasicCalendarPython.argtypes = [c_float, c_char_p]
 
@@ -90,6 +93,12 @@ class CalendarDriver(object):
         if response is None:
             return None
         return "Component Properties:\n" + response.decode()
+
+    def getComponentPropertiesDatabase(self, calPointer, compNum):
+        response = self.calLib.getComponentPropertiesDatabasePython(calPointer, c_int(compNum))
+        if response is None:
+            return None
+        return response.decode()
 
     def encode(self, string):
         return string.encode('utf-8')

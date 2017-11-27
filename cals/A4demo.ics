@@ -1,0 +1,37 @@
+BEGIN:VCALENDAR
+PRODID:A4 Demo
+VERSION:2.000000
+BEGIN:VEVENT
+UID:uid num 1
+DTSTAMP:20171113T145527
+SUMMARY:This is the summary of the first event in the calendar
+ORGANIZER;CN=organizer one:MAILTO:org1@gmail.com
+LOCATION:Conference room 1
+END:VEVENT
+BEGIN:VEVENT
+UID:uid num 2
+DTSTAMP:20171225T145527
+SUMMARY:This is the summary of the second event in the calendar
+ORGANIZER;CN=organizer one:MAILTO:org1@gmail.com
+LOCATION:At home with your family
+END:VEVENT
+BEGIN:VEVENT
+UID:uid num 3
+DTSTAMP:20171225T145527
+ORGANIZER;CN=organizer two:MAILTO:org2@gmail.com
+LOCATION:At home with your dog
+END:VEVENT
+BEGIN:VEVENT
+UID:uid num 4
+DTSTAMP:20171231T145527
+SUMMARY:This is new years. Find something to do
+ORGANIZER;CN=organizer two:MAILTO:org2@gmail.com
+END:VEVENT
+BEGIN:VEVENT
+UID:uid num 5
+DTSTAMP:20180101T145527
+SUMMARY:You are probably hungover
+ORGANIZER;CN=organizer two:MAILTO:org2@gmail.com
+LOCATION:Your bed
+END:VEVENT
+END:VCALENDAR

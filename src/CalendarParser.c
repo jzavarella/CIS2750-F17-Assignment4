@@ -62,6 +62,22 @@ int validateVersionPython(char* version) {
   return 1;
 }
 
+Event* getEventAtIndex(Calendar* c, int index) {
+  if (!c) {
+    return NULL;
+  }
+
+  ListIterator events = createIterator(c->events);
+  Event* event;
+  for (size_t i = 0; i < index; i++) {
+    event = nextElement(&events);
+  }
+  if (!event) {
+    return NULL; // There is not component at compNum
+  }
+  return event;
+}
+
 ICalErrorCode validateCalendarPython(char* fileName) {
   Calendar* c = calloc(sizeof(Calendar), 1);
   ICalErrorCode e = createCalendar(fileName, &c);
@@ -115,19 +131,83 @@ char* getComponentAlarmsPython(Calendar* c, int compNum) {
   return final;
 }
 
+char* getComponentPropertiesDatabasePython(Calendar* c, int compNum) {
+  if (!c) {
+    return NULL;
+  }
+
+  Event* event = getEventAtIndex(c, compNum);
+
+  if (!event) {
+    return NULL; // There is not component at compNum
+  }
+
+  size_t strlength = 0;
+
+  Property* summary;
+  if ((summary = findElement(event->properties, &compareTags, "SUMMARY"))) {
+    strlength += strlen(summary->propDescr);
+  }
+  strlength += strlen("\\\"");
+
+  char* prettyStart = printDatePretty(event->startDateTime);
+  strlength += strlen(prettyStart);
+  strlength += strlen("\\\"");
+
+  Property* location;
+  if ((location = findElement(event->properties, &compareTags, "LOCATION"))) {
+    strlength += strlen(location->propDescr);
+  }
+  strlength += strlen("\\\"");
+
+  int numAlarms = getLength(event->alarms);
+  strlength += snprintf(NULL, 0, "%d", numAlarms);
+  strlength += strlen("\\\"");
+
+  Property* organizer;
+  if ((organizer = findElement(event->properties, &compareTags, "ORGANIZER"))) {
+    strlength += strlen(organizer->propDescr);
+  }
+
+  char* final = calloc(strlength + 1, 1);
+  strcpy(final, "");
+
+  if (summary) {
+    strcat(final, summary->propDescr);
+  }
+  strcat(final, "\\\"");
+
+  strcat(final, prettyStart);
+  safelyFreeString(prettyStart); // Free this char
+  strcat(final, "\\\"");
+
+  if (location) {
+    strcat(final, location->propDescr);
+  }
+  strcat(final, "\\\"");
+
+  char temp[100];
+  sprintf(temp, "%d", numAlarms);
+  strcat(final, temp);
+  strcat(final, "\\\"");
+
+  if (organizer) {
+    strcat(final, organizer->propDescr);
+  }
+
+  return final;
+}
+
 char* getComponentPropsPython(Calendar* c, int compNum) {
   if (!c) {
     return NULL;
   }
 
-  ListIterator events = createIterator(c->events);
-  Event* event;
-  for (size_t i = 0; i < compNum; i++) {
-    event = nextElement(&events);
-  }
+  Event* event = getEventAtIndex(c, compNum);
   if (!event) {
     return NULL; // There is not component at compNum
   }
+
   ListIterator props = createIterator(event->properties);
   Property* p;
   int n = getLength(event->properties); // The number of properties in the list
