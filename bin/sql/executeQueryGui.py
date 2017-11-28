@@ -22,16 +22,18 @@ class QueryGui(tk.Tk):
         self.parent = parent
         self.protocol('WM_DELETE_WINDOW', self.quitHandler)  # Ask the user if they really want to quit when they hit the x button
         self.MODES = [
-        ("Display events ordered by start time", "SELECT * FROM EVENT ORDER BY start_time ASC"),
+        ("Display events ordered by start time\n(Select this option if you wish to enter your own query)", "SELECT * FROM EVENT ORDER BY start_time ASC"),
         ("Display events from organizer: ", "SELECT EVENT.start_time, EVENT.summary FROM EVENT INNER JOIN ORGANIZER ON EVENT.organizer=ORGANIZER.org_id WHERE ORGANIZER.name="),
-        ("Something location", "RGB"),
+        ("Search for event by location: ", "SELECT * FROM EVENT INNER JOIN ORGANIZER ON EVENT.organizer=ORGANIZER.org_id WHERE EVENT.location="),
         ("Enter organizer name to contact: ", "SELECT contact from ORGANIZER WHERE ORGANIZER.name="),
-        ("Something alarms", "a"),
+        ("Show events with at least this many alarms: ", "SELECT * FROM EVENT WHERE num_alarms>="),
         ]
         self.geometry("900x1200") # Set the dimension of the window
         self.mainFrame = tk.Frame(self)
         self.organizerEntry = None
+        self.locationEntry = None
         self.organizerMailEntry = None
+        self.alarmEntry = None
         self.initQueryView() # Make the file view
         self.initLogPanel() # Make the console
         self.mainFrame.pack(fill="both", expand=1)
@@ -51,11 +53,15 @@ class QueryGui(tk.Tk):
             if text == self.MODES[1][0]:
                 self.organizerEntry = Entry(self.radioFrames[-1], bd=2, width=20)
                 self.organizerEntry.pack(side=RIGHT)
-                # radio = Radiobutton(self.radioFrames[-1], text=text, value=mode, command=self.updateQuery, variable=self.radioVar)
+            elif text == self.MODES[2][0]:
+                self.locationEntry = Entry(self.radioFrames[-1], bd=2, width=20)
+                self.locationEntry.pack(side=RIGHT)
             elif text == self.MODES[3][0]:
                 self.organizerMailEntry = Entry(self.radioFrames[-1], bd=2, width=20)
                 self.organizerMailEntry.pack(side=RIGHT)
-                # radio = Radiobutton(self.radioFrames[-1], text=text, value=mode, command=self.updateQuery, variable=self.radioVar)
+            elif text == self.MODES[4][0]:
+                self.alarmEntry = Entry(self.radioFrames[-1], bd=2, width=20)
+                self.alarmEntry.pack(side=RIGHT)
 
             radio = Radiobutton(self.radioFrames[-1], text=text, value=mode, command=self.updateQuery, variable=self.radioVar)
             radio.pack(side=LEFT)
@@ -157,6 +163,17 @@ class QueryGui(tk.Tk):
             self.queryEntry.delete(0, 'end')
             self.queryEntry.insert(0, query)
             self.queryEntry.xview(END)
+        elif self.radioVar.get() == self.MODES[2][1]:
+            query = self.radioVar.get()
+            if (self.locationEntry.get() == "" or self.locationEntry.get() == " ") and query[-1] == "=":
+                self.log("Please enter the name of a location into the entry box")
+                self.locationEntry.focus_set()
+                return
+
+            query = query + '\'' + self.locationEntry.get() + '\''
+            self.queryEntry.delete(0, 'end')
+            self.queryEntry.insert(0, query)
+            self.queryEntry.xview(END)
         elif self.radioVar.get() == self.MODES[3][1]:
             query = self.radioVar.get()
             if (self.organizerMailEntry.get() == "" or self.organizerMailEntry.get() == " ") and query[-1] == "=":
@@ -165,6 +182,23 @@ class QueryGui(tk.Tk):
                 return
 
             query = query + '\'' + self.organizerMailEntry.get() + '\''
+            self.queryEntry.delete(0, 'end')
+            self.queryEntry.insert(0, query)
+            self.queryEntry.xview(END)
+        elif self.radioVar.get() == self.MODES[4][1]:
+            query = self.radioVar.get()
+            if (self.alarmEntry.get() == "" or self.alarmEntry.get() == " ") and query[-1] == "=":
+                self.log("Please enter a number of alamrs into the entry box")
+                self.alarmEntry.focus_set()
+                return
+            try:
+                int(self.alarmEntry.get())
+            except:
+                self.log("You must enter an integer into the alarm entry box")
+                self.alarmEntry.focus_set()
+                return
+
+            query = query + '\'' + self.alarmEntry.get() + '\''
             self.queryEntry.delete(0, 'end')
             self.queryEntry.insert(0, query)
             self.queryEntry.xview(END)
